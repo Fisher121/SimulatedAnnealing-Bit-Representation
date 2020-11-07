@@ -1,0 +1,188 @@
+#include <stdio.h>
+#include<iostream>
+#include <math.h>
+#include<time.h>
+#include <vector>
+#define pi 3.14159265359
+float a, b;
+int prec , n,l,L;
+
+using namespace std;
+float random()
+{
+    srand(time(0));
+    int accuracy = pow(10, prec);
+    int x = rand()%accuracy;
+    return (float)x / accuracy;
+}
+float decode( vector<char>::iterator  it_start, vector<char>::iterator it_end)
+{
+
+    int x_int = 0;
+    float x_scaled;
+    for (vector<char>::iterator it = it_start; it != it_end; it++)
+    {
+        x_int *= 2;
+        x_int += *it;
+    }
+
+    x_scaled = x_int / (pow(2, l) - 1);
+
+    return x_scaled * (b - a) + a;
+}
+
+
+vector<float> decode_values(vector<char>& bits)
+{
+    vector<char>::iterator it_start, it_end;
+    vector<float> values;
+
+    for (int ii = 0; ii < n; ++ii)
+    {
+        int start = ii * l;
+        int end = start + l;
+        it_start = bits.begin() + start;
+        it_end = bits.begin() + end;
+        float x = decode(it_start, it_end);
+        values.push_back(x);
+    }
+    return values;
+}
+vector<vector<char>> generate_neighborhood(vector<char>& bits)
+{
+    vector<vector<char>> neighborhood;
+    for (int ii = 0; ii < bits.size(); ++ii)
+    {
+        bits[ii] = !bits[ii];
+        neighborhood.push_back(bits);
+        bits[ii] = !bits[ii];
+    }
+    return neighborhood;
+}
+float DeJong(vector<float> values)
+{
+    float sum = 0;
+    for (int i = 0; i <= n - 1; i++)
+    {
+        sum = sum + values[i] * values[i];
+    }
+    return sum;
+}
+float Schwefel(vector<float>values)
+{
+    float sum = 0;
+    for (int i = 0; i <= n - 1; i++)
+    {
+        sum = sum - values[i] * sin(sqrt(abs(values[i])));
+    }
+    return sum;
+}
+float Michalewicz(vector<float>values)
+{
+    float sum = 0;
+    for (int i = 0; i <= n - 1; i++)
+    {
+        sum = sum + sin(values[i]) * pow(sin(i * values[i] * values[i] / pi), 20);
+    }
+    return -sum;
+}
+float Rastrigin(vector<float>values)
+{
+    float sum = 0;
+    for (int i = 0; i <= n - 1; i++)
+    {
+        sum = sum + values[i] * values[i] - 10 * cos(2 * pi * values[i]);
+    }
+    sum = sum + 10 * n;
+    return sum;
+}
+int eval(vector<char> solution , vector<char> best, float (*function)(vector<float>))
+{
+    float function_y,best_y;
+    function_y = function(decode_values(solution));
+    best_y = function(decode_values(best));
+    if (function_y < best_y)
+        return 1;
+    else
+        return 0;
+}
+vector<char> generateRandomNeighbor(vector<vector<char>> neighborhood)
+{
+    int size = neighborhood.size()-1;
+    int random = rand() % size;
+    return neighborhood[random];
+}
+float g(float T)
+{
+    return T*0.999;
+}
+float SimulatedAnnealing(double T,float(*function)(vector<float>),int a1, int b1, int n1,int prec1)
+{
+    a = a1;
+    b = b1;
+    n = n1;
+    prec = prec1;
+	float NoP;
+    int t;
+    bool local;
+	NoP = (b - a) * pow(10, prec);
+	l = ceil(log(NoP) / log(2));
+	L = l * n;
+    vector<char> candidate_solution = vector<char>(L,1),random_neighbor, neighbour,best=vector<char>(L,1);
+    vector<vector<char>> neighborhood;
+    srand(time(0));
+    T = 1000;
+    for (int i = 0; i <= L - 1; i++)
+    {
+           candidate_solution[i] = rand() % 2;
+    }
+    do
+    {
+        int terminateCondition = 0;
+        do
+        {
+            random_neighbor = generateRandomNeighbor(generate_neighborhood(candidate_solution));
+            if (eval(random_neighbor, candidate_solution, function))
+                candidate_solution = random_neighbor;
+            else
+                if (random() < -abs(function(decode_values(random_neighbor)) - function(decode_values(candidate_solution)))/T)
+                    candidate_solution = random_neighbor;
+             terminateCondition++;
+        } while (terminateCondition<30);
+        if (eval(candidate_solution, best, function))
+            best = candidate_solution;
+        T = g(T);
+    } while (T> pow(10,-8));
+    float x = function(decode_values(best));
+    return x;
+}
+float findStandardDeviation(float* array, int count) {
+    float sum = 0.0, sDeviation = 0.0, mean;
+    int i;
+
+    for (i = 0; i < count; i++) {
+        sum += array[i];
+    }
+    mean = sum / count;
+    for (i = 0; i < count; ++i) {
+        sDeviation += pow(array[i] - mean, 2);
+    }
+
+    return sqrt(sDeviation / count);
+}
+int main()
+{
+    float min =500*10,s,med=0,values[31],max=-500*10;
+    for (int i = 1; i <= 30; i++)
+    {
+      s=SimulatedAnnealing(1, Schwefel, -500, 500, 10, 3);
+      values[i-1] = s;
+      med = med + s;
+      if (s < min)
+          min = s;
+      if (s > max)
+          max = s;
+    }
+    cout << "stdev : " << findStandardDeviation(values, 30 )<< endl;
+    printf("minimul este: %f\nmedia este: %f\nmax : %f",min,med/30,max);
+}
